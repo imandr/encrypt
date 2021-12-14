@@ -1,5 +1,7 @@
 # encrypt
 
+Simple file encryption/decryption tool baed on the Advanced Encryption Standard.
+
 ## File encryption/decryption tool
 
 ### Command syntax and arguments
@@ -31,5 +33,7 @@ So the encrypted file size is the original file size plus 2 + 4 + 16 bytes
 ## SHA256 checksum calculation
 
 ```sh
-$ python sha256.py [-c <checksum>] <file>
+$ python sha256.py <file> ...                 - calculate checksum for one or more files
+$ python sha256.py -c <hex checksum> <file>   - check checksum for a file
+$ python sha256.py -c <file with paths and checksums>   - check checksum for multiple files
 ```
