@@ -78,7 +78,7 @@ def decrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
         close_out = True
 
     if Verbose:
-        print(f"decrypting {inp_fn} -> {out_fn} ...")
+        print(f"decrypting {inp_fn} -> %s ..." % ())
 
     inp = open(inp_fn, "rb")
 
