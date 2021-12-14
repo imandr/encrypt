@@ -1,5 +1,6 @@
 import secrets, sys, os, getopt
 from Crypto.Cipher import AES
+from getpass import getpass
 from hashlib import sha256
 
 KEY_SIZE = 32
@@ -21,7 +22,7 @@ def hash_password(password):
     hash = sha256()
     hash.update(password)
     key = hash.digest()[:KEY_SIZE]
-    print("hashed password:", key.hex())
+    #print("hashed password:", key.hex())
     return key
 
 def encrypt(key, inp_fn, out_fn = None):
@@ -32,7 +33,7 @@ def encrypt(key, inp_fn, out_fn = None):
     inp = open(inp_fn, "rb")
     out = open(out_fn, "wb")
     out.write(iv)
-    print("iv:", iv.hex())
+    #print("iv:", iv.hex())
     while True:
         buf = inp.read(8*1024)
         if not buf:
@@ -59,7 +60,7 @@ def decrypt(key, inp_fn, out_fn = None, overwrite_out = False, encoding = "utf-8
     else:
         out = open(out_fn, "wb")
     iv = inp.read(AES.block_size)
-    print("iv:", iv.hex())
+    #print("iv:", iv.hex())
     cipher = AES.new(key, AES.MODE_CFB, iv)
     while True:
         buf = inp.read(8*1024)
@@ -96,7 +97,7 @@ def get_key(opts):
             if len(val) == KEY_SIZE:
                 key = val      # binary key
             elif len(val) == KEY_SIZE*2 and all(c in b"0123456789abcdefABCDEF" for c in val):
-                print("Decodong key from hex:", val)
+                #print("Decodong key from hex:", val)
                 key = bytes.fromhex(val.strip().decode("utf-8"))
             else:
                 print("Unrecognized key file format:", key_file)
@@ -104,7 +105,7 @@ def get_key(opts):
         else:
             key = bytes.fromhex(val)
             assert len(key) == KEY_SIZE
-        print("key:", key.hex())
+        #print("key:", key.hex())
         return key
     elif "-g" in opts or "-G" in opts:
         key = secrets.token_bytes(KEY_SIZE)
@@ -144,7 +145,6 @@ if not args:
 opts, args = getopt.getopt(args, "w:k:g:G:fe:")
 opts = dict(opts)
 args = tuple(args + [None])[:2]
-key = get_key(opts)
 
 inp_fn, out_fn = args
 opts = dict(opts)
@@ -152,10 +152,14 @@ overwrite = "-f" in opts
 encoding = opts.get("-e", "utf-8")
 
 if cmd == "encrypt":
+    key = get_key(opts)
     encrypt(key, inp_fn, out_fn)
-else:
+elif cmd == "decrypt":
+    key = get_key(opts)
     decrypt(key, inp_fn, out_fn, overwrite, encoding)
-    
+else:
+    print(Usage)
+    sys.exit(2)
 
     
 
