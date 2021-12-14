@@ -206,6 +206,7 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -f                                  # override output file
     -r                                  # remove input file
     -c                                  # send output to stdout (single file only)
+    -v                                  # verbose output
 """
 
 if not sys.argv[1:]:
