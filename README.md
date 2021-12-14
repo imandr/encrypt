@@ -26,7 +26,7 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
  * format version - 2 bytes
  * flags - 4 bytes, currently unused
  * AES initialization vector (IV) - 16 bytes, Python ``secrets`` module is used to generate random IV
- * Encrypted file content - AES is used in CFB mode witg the IV above
+ * Encrypted file content - AES is used in CFB mode with the IV above
  
 So the encrypted file size is the original file size plus 2 + 4 + 16 bytes
 
