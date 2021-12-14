@@ -1,9 +1,14 @@
-import secrets, sys, os, getopt
+import secrets, sys, os, getopt, struct
+import Crypto
 from Crypto.Cipher import AES
 from getpass import getpass
 from hashlib import sha256
 
+Version = 1
+
 KEY_SIZE = 32
+
+Verbose = False
 
 def to_bytes(x, encoding="utf-8"):
     if isinstance(x, str):
@@ -25,90 +30,118 @@ def hash_password(password):
     #print("hashed password:", key.hex())
     return key
 
-def encrypt(key, inp_fn, out_fn, remove_input):
-    out_fn = out_fn or inp_fn + ".aes"
-    print(f"Encrypting {inp_fn} -> {out_fn} ...")
+def encrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
+    output = None
+    close_out = False
+    if out_fn is None:
+        if send_to_stdout:
+            output = sys.stdout.buffer
+        else:
+            out_fn = out_fn or inp_fn + ".aes"
+    if output is None:  
+        close_out = True
+        output = open(out_fn, "wb")
+    if Verbose:
+        print(f"encrypting {inp_fn} -> {out_fn} ...")
     iv = secrets.token_bytes(AES.block_size)
     cipher = AES.new(key, AES.MODE_CFB, iv)
     inp = open(inp_fn, "rb")
-    out = open(out_fn, "wb")
-    out.write(iv)
-    #print("iv:", iv.hex())
+    flags = 0    
+    header = struct.pack(">HL", Version, flags)
+    output.write(header)
+    output.write(iv)
     while True:
         buf = inp.read(8*1024)
         if not buf:
             break
-        out.write(cipher.encrypt(buf))
-    out.close()
+        output.write(cipher.encrypt(buf))
+    if close_out:
+        output.close()
     inp.close()
+    if remove_input:
+        os.remove(inp_fn)
     
-def decrypt(key, inp_fn, out_fn, encoding, remove_input):
+def decrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
+    output = None
+    close_out = False
     if out_fn is None:
-        if not inp_fn.endswith(".aes"):
-            print("Can not reconstruct original file name. Specify the output file explicitly")
-            sys.exit(2)
-        out_fn = inp_fn[:-4]
+        if send_to_stdout:
+            output = sys.stdout.buffer
+        else:
+            if not inp_fn.endswith(".aes"):
+                print("Can not reconstruct original file name. Specify the output file explicitly")
+                sys.exit(2)
+            out_fn = inp_fn[:-4]
 
-    print(f"Decrypting {inp_fn} -> {out_fn} ...")
+    if output is None:
+        output = open(out_fn, "wb")
+        close_out = True
+
+    if Verbose:
+        print(f"decrypting {inp_fn} -> {out_fn} ...")
 
     inp = open(inp_fn, "rb")
-    if out_fn == "-":
-        out = sys.stdout
-    else:
-        out = open(out_fn, "wb")
+
+    header_length = 2+4   # version + flags + IV
+    header = inp.read(header_length)
     iv = inp.read(AES.block_size)
-    #print("iv:", iv.hex())
+
+    if len(header) != header_length or len(iv) != AES.block_size:
+        raise ValueError(f"Invalid format for encrypted file {inp_fn}")
+
+    version, flags = struct.unpack(">HL", header)           # ignored
+        
     cipher = AES.new(key, AES.MODE_CFB, iv)
     while True:
         buf = inp.read(8*1024)
         if not buf:
             break
         decrypted = cipher.decrypt(buf)
-        if out is sys.stdout:
-            out.write(decrypted.decode(encoding))
-        else:
-            out.write(decrypted)
-    out.close()
+        output.write(decrypted)
+    if close_out:
+        output.close()
     inp.close()
-    
-def decrypt_many(key, inputs, out_dir, overwrite_out, remove_input):
+    if remove_input:
+        os.remove(inp_fn)
+
+def decrypt_many(key, inputs, output_dir, overwrite_out, remove_input):
     errors = 0
     outputs = []
     for inp in inputs:
+        inp_dir, _, inp_fn = inp.rpartition("/")
         if not inp.endswith(".aes"):
             print("Can not reconstruct original file name for encrypted file", inp)
             errors += 1
-        fn = inp
-        if "/" in fn:
-            fn = inp.rsplit("/", 1)[-1]
-        out = out_dir + "/" + fn[:-4]           # remove ".aes"
+        out_fn = inp_fn[:-4]        # cut ".aes"
+        out_dir = output_dir or inp_dir
+        out = out_dir + "/" + out_fn if out_dir else out_fn
         if os.path.isfile(out) and not overwrite_out:
             print(f"Plaintext for encrypted file {inp} exists. Use -f to ovverwrite")
             errors += 1
         outputs.append(out)
     if not errors:
         for inp, out in zip(inputs, outputs):
-            decrypt(key, inp, out, overwrite_out, remove_input)
+            decrypt(key, inp, out, remove_input, False)
         return True
     else:
         print("Aborted due to errors")
         return False
-                
-def encrypt_many(key, inputs, out_dir, overwrite_out, remove_input):
+
+def encrypt_many(key, inputs, output_dir, overwrite_out, remove_input):
     errors = 0
     outputs = []
     for inp in inputs:
-        fn = inp
-        if "/" in fn:
-            fn = inp.rsplit("/", 1)[-1]
-        out = out_dir + "/" + fn + ".aes"  
+        inp_dir, _, inp_fn = inp.rpartition("/")
+        out_fn = inp_fn + ".aes"
+        out_dir = output_dir or inp_dir
+        out = out_dir + "/" + out_fn if out_dir else out_fn
         if os.path.isfile(out) and not overwrite_out:
             print(f"Encrypted file {out} exists. Use -f to ovverwrite")
             errors += 1
         outputs.append(out)
     if not errors:
         for inp, out in zip(inputs, outputs):
-            encrypt(key, inp, out, remove_input)
+            encrypt(key, inp, out, remove_input, False)
         return True
     else:
         print("Aborted due to errors")
@@ -162,7 +195,7 @@ def get_key(opts):
            
 
 Usage = """
-python aes.py (encrypt|decrypt) [options] <input_file> [<output_file>|-]
+python aes.py (encrypt|decrypt) [options] <input_file> [<output_file>]
 python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -w <password>
     -w @<file with one line password>
@@ -170,9 +203,9 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -k @<file with binary or hex key>
     -g <output file for key>            # generate random key and write to file
     -G <output file for key>            # generate random key and write to file and override existing key file if present
-    -e <ecnoding>                       # for decrypting to stdout (output file is "-")
     -f                                  # override output file
     -r                                  # remove input file
+    -c                                  # send output to stdout (single file only)
 """
 
 if not sys.argv[1:]:
@@ -184,13 +217,14 @@ if not args:
     print(Usage)
     sys.exit(2)
 
-opts, args = getopt.getopt(args, "w:k:g:G:fe:")
+opts, args = getopt.getopt(args, "w:k:g:G:fcrv")
 opts = dict(opts)
 
 opts = dict(opts)
 overwrite = "-f" in opts
-encoding = opts.get("-e", "utf-8")
 remove_input = "-r" in opts
+send_to_stdout = "-c" in opts
+Verbose = "-v" in opts
 
 if len(args) == 1 or len(args) == 2 and not os.path.isdir(args[-1]):
     inp = args[0]
@@ -203,13 +237,19 @@ if len(args) == 1 or len(args) == 2 and not os.path.isdir(args[-1]):
         sys.exit(1)
     key = get_key(opts)
     if cmd == "encrypt":
-        encrypt(key, inp, out, remove_input)
+        encrypt(key, inp, out, remove_input, send_to_stdout)
     elif cmd == "decrypt":
-        decrypt(key, inp, out, encoding, remove_input)
-else:        
-    out_dir = args[-1]
-    inputs = args[:-1]
-    if len(args) > 1 and os.path.isdir(args[-1]):
+        decrypt(key, inp, out, remove_input, send_to_stdout)
+else:
+    if os.path.isfile(args[-1]):
+        out_dir = None
+        inputs = args
+    elif os.path.isdir(args[-1]):
+        out_dir = args[-1]
+        inputs = args[:-1]
+    else:
+        print("Output directory does not exist")
+        sys.exit(1)
 
     key = get_key(opts)
     if cmd == "encrypt":
