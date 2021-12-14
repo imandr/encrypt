@@ -25,7 +25,7 @@ def hash_password(password):
     #print("hashed password:", key.hex())
     return key
 
-def encrypt(key, inp_fn, out_fn = None):
+def encrypt(key, inp_fn, out_fn, remove_input):
     out_fn = out_fn or inp_fn + ".aes"
     print(f"Encrypting {inp_fn} -> {out_fn} ...")
     iv = secrets.token_bytes(AES.block_size)
@@ -42,16 +42,13 @@ def encrypt(key, inp_fn, out_fn = None):
     out.close()
     inp.close()
     
-def decrypt(key, inp_fn, out_fn = None, overwrite_out = False, encoding = "utf-8"):
+def decrypt(key, inp_fn, out_fn, encoding, remove_input):
     if out_fn is None:
         if not inp_fn.endswith(".aes"):
             print("Can not reconstruct original file name. Specify the output file explicitly")
             sys.exit(2)
         out_fn = inp_fn[:-4]
-    if os.path.exists(out_fn) and not overwrite_out:
-        print(f"Output file {out_fn} exists. Use -f to overwrite")
-        sys.exit(2)
-        
+
     print(f"Decrypting {inp_fn} -> {out_fn} ...")
 
     inp = open(inp_fn, "rb")
@@ -73,6 +70,49 @@ def decrypt(key, inp_fn, out_fn = None, overwrite_out = False, encoding = "utf-8
             out.write(decrypted)
     out.close()
     inp.close()
+    
+def decrypt_many(key, inputs, out_dir, overwrite_out, remove_input):
+    errors = 0
+    outputs = []
+    for inp in inputs:
+        if not inp.endswith(".aes"):
+            print("Can not reconstruct original file name for encrypted file", inp)
+            errors += 1
+        fn = inp
+        if "/" in fn:
+            fn = inp.rsplit("/", 1)[-1]
+        out = out_dir + "/" + fn[:-4]           # remove ".aes"
+        if os.path.isfile(out) and not overwrite_out:
+            print(f"Plaintext for encrypted file {inp} exists. Use -f to ovverwrite")
+            errors += 1
+        outputs.append(out)
+    if not errors:
+        for inp, out in zip(inputs, outputs):
+            decrypt(key, inp, out, overwrite_out, remove_input)
+        return True
+    else:
+        print("Aborted due to errors")
+        return False
+                
+def encrypt_many(key, inputs, out_dir, overwrite_out, remove_input):
+    errors = 0
+    outputs = []
+    for inp in inputs:
+        fn = inp
+        if "/" in fn:
+            fn = inp.rsplit("/", 1)[-1]
+        out = out_dir + "/" + fn + ".aes"  
+        if os.path.isfile(out) and not overwrite_out:
+            print(f"Encrypted file {out} exists. Use -f to ovverwrite")
+            errors += 1
+        outputs.append(out)
+    if not errors:
+        for inp, out in zip(inputs, outputs):
+            encrypt(key, inp, out, remove_input)
+        return True
+    else:
+        print("Aborted due to errors")
+        return False
 
 def prompt_password():
     password =  getpass("Password:")
@@ -123,14 +163,16 @@ def get_key(opts):
 
 Usage = """
 python aes.py (encrypt|decrypt) [options] <input_file> [<output_file>|-]
+python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -w <password>
     -w @<file with one line password>
     -k <hex key>
     -k @<file with binary or hex key>
     -g <output file for key>            # generate random key and write to file
     -G <output file for key>            # generate random key and write to file and override existing key file if present
-    -f <override output file>
     -e <ecnoding>                       # for decrypting to stdout (output file is "-")
+    -f                                  # override output file
+    -r                                  # remove input file
 """
 
 if not sys.argv[1:]:
@@ -144,22 +186,39 @@ if not args:
 
 opts, args = getopt.getopt(args, "w:k:g:G:fe:")
 opts = dict(opts)
-args = tuple(args + [None])[:2]
 
-inp_fn, out_fn = args
 opts = dict(opts)
 overwrite = "-f" in opts
 encoding = opts.get("-e", "utf-8")
+remove_input = "-r" in opts
 
-if cmd == "encrypt":
+if len(args) == 1 or len(args) == 2 and not os.path.isdir(args[-1]):
+    inp = args[0]
+    if len(args) == 1:
+        out = None
+    else:
+        out = args[1]
+    if out and os.path.isfile(out) and not overwrite:
+        print(f"Output {out} exists. Use -f")
+        sys.exit(1)
     key = get_key(opts)
-    encrypt(key, inp_fn, out_fn)
-elif cmd == "decrypt":
+    if cmd == "encrypt":
+        encrypt(key, inp, out, remove_input)
+    elif cmd == "decrypt":
+        decrypt(key, inp, out, encoding, remove_input)
+else:        
+    out_dir = args[-1]
+    inputs = args[:-1]
+    if len(args) > 1 and os.path.isdir(args[-1]):
+
     key = get_key(opts)
-    decrypt(key, inp_fn, out_fn, overwrite, encoding)
-else:
-    print(Usage)
-    sys.exit(2)
+    if cmd == "encrypt":
+        encrypt_many(key, inputs, out_dir, overwrite, remove_input)
+    elif cmd == "decrypt":
+        decrypt_many(key, inputs, out_dir, overwrite, remove_input)
+    else:
+        print(Usage)
+        sys.exit(2)
 
     
 
