@@ -8,7 +8,7 @@ Simple file encryption/decryption tool baed on the Advanced Encryption Standard.
 
 ```sh
 $ python aes.py (encrypt|decrypt) [options] <input_file> [<output_file>]
-python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
+$ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -w <password>
     -w @<file with one line password>
     -k <hex key>
@@ -16,9 +16,11 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -g <output file for key>            # generate random key and write to file
     -G <output file for key>            # generate random key and write to file and override existing key file if present
     -f                                  # override output file
-    -r                                  # remove input file
+    -r                                  # securely wipe and remove input file(s)
     -c                                  # send output to stdout (single file only)
     -v                                  # verbose output
+
+$ python aes.py wipe <file> ...           # securely wipe and remove files
 ```
 
 ### Encrypted file format
