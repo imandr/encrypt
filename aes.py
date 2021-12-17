@@ -223,7 +223,7 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -g <output file for key>            # generate random key and write to file
     -G <output file for key>            # generate random key and write to file and override existing key file if present
     -f                                  # override output file
-    -r                                  # remove input file
+    -r                                  # securely wipe and remove input file(s)
     -c                                  # send output to stdout (single file only)
     -v                                  # verbose output
 
