@@ -30,6 +30,25 @@ def hash_password(password):
     #print("hashed password:", key.hex())
     return key
 
+def wipe(path, passes=5):
+    size = os.path.getsize(path)
+    f = open(path, "wb+")
+    block_size = 1024
+    patterns = [b'0xff'*block_size, b'0x00'*block_size, b'0xf0'*block_size, b'0x0f'*block_size]
+    if Verbose:
+        print("wiping", path, end=" ")
+    for ipass in range(passes):
+        f.seek(0, 0)
+        pattern = patterns[ipass % len(patterns)]
+        for off in range(0, size, block_size):
+            l = min(block_size, size-off)
+            if l > 0:
+                f.write(pattern[:l])
+        f.flush()
+        if Verbose: print(".", end="")
+    if Verbose: print("")
+    os.remove(path)
+
 def encrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
     output = None
     close_out = False
@@ -59,7 +78,7 @@ def encrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
         output.close()
     inp.close()
     if remove_input:
-        os.remove(inp_fn)
+        wipe(inp_fn)
     
 def decrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
     output = None
@@ -102,7 +121,7 @@ def decrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
         output.close()
     inp.close()
     if remove_input:
-        os.remove(inp_fn)
+        wipe(inp_fn)
 
 def decrypt_many(key, inputs, output_dir, overwrite_out, remove_input):
     errors = 0
@@ -207,6 +226,8 @@ python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
     -r                                  # remove input file
     -c                                  # send output to stdout (single file only)
     -v                                  # verbose output
+
+python aes.py wipe <file> ...           # securely wipe and remove files
 """
 
 if not sys.argv[1:]:
@@ -226,6 +247,13 @@ overwrite = "-f" in opts
 remove_input = "-r" in opts
 send_to_stdout = "-c" in opts
 Verbose = "-v" in opts
+
+if cmd == "wipe":
+    for path in args:
+        if Verbose:
+            print("wiping", path, "...")
+            wipe(path)
+    sys.exit(0)
 
 if len(args) == 1 or len(args) == 2 and not os.path.isdir(args[-1]):
     inp = args[0]
