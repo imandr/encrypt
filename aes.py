@@ -35,8 +35,7 @@ def wipe(path, passes=5):
     f = open(path, "wb+")
     block_size = 1024
     patterns = [b'0xff'*block_size, b'0x00'*block_size, b'0xf0'*block_size, b'0x0f'*block_size]
-    if Verbose:
-        print("wiping", path, end=" ")
+    print("wiping    ", path, "...")
     for ipass in range(passes):
         f.seek(0, 0)
         pattern = patterns[ipass % len(patterns)]
@@ -45,8 +44,6 @@ def wipe(path, passes=5):
             if l > 0:
                 f.write(pattern[:l])
         f.flush()
-        if Verbose: print(".", end="")
-    if Verbose: print("")
     os.remove(path)
 
 def encrypt(key, inp_fn, out_fn, remove_input, send_to_stdout):
@@ -127,6 +124,12 @@ def decrypt_many(key, inputs, output_dir, overwrite_out, remove_input):
     errors = 0
     outputs = []
     for inp in inputs:
+        if not os.path.exists(inp):
+            print("Not found:", inp, file=sys.stderr)
+            continue
+        if not os.path.isfile(inp):
+            print("Not a file:", inp, file=sys.stderr)
+            continue            
         inp_dir, _, inp_fn = inp.rpartition("/")
         if not inp.endswith(".aes"):
             print("Can not reconstruct original file name for encrypted file", inp)
@@ -150,6 +153,12 @@ def encrypt_many(key, inputs, output_dir, overwrite_out, remove_input):
     errors = 0
     outputs = []
     for inp in inputs:
+        if not os.path.exists(inp):
+            print("Not found:", inp, file=sys.stderr)
+            continue
+        if not os.path.isfile(inp):
+            print("Not a file:", inp, file=sys.stderr)
+            continue            
         inp_dir, _, inp_fn = inp.rpartition("/")
         out_fn = inp_fn + ".aes"
         out_dir = output_dir or inp_dir
@@ -216,7 +225,7 @@ def get_key(opts):
 Usage = """
 python aes.py (encrypt|decrypt) [options] <input_file> [<output_file>]
 python aes.py (encrypt|decrypt) [options] <input_file> ... <output dir>
-    -w <password>
+    -w <password>                       # password will be hashed into a key
     -w @<file with one line password>
     -k <hex key>
     -k @<file with binary or hex key>
@@ -252,7 +261,7 @@ if cmd == "wipe":
     for path in args:
         if Verbose:
             print("wiping", path, "...")
-            wipe(path)
+        wipe(path)
     sys.exit(0)
 
 if len(args) == 1 or len(args) == 2 and not os.path.isdir(args[-1]):

@@ -1,5 +1,6 @@
 from hashlib import sha256
-import sys, getopt
+import sys, getopt, os
+from datetime import datetime
 
 Usage = """
 python sha256.py <file> ...                 - calculate checksum for one or more files
@@ -27,16 +28,26 @@ if not args and not "-c" in opts:
 status = 0
 
 if not args:
+    checksums = {}      # file -> checksum      -- Same file may appear multiple times in the list. Use the last checksum
     lines = open(opts["-c"], "r").readlines()
+
     for line in lines:
         line = line.strip()
         if line and not line[0] == "#":
             path, c0 = line.split(None, 1)
-            c0 = c0.lower()
+            checksums[path] = c0.lower()
+
+    for path, c0 in checksums.items():
+        if not os.path.isfile(path):
+            print(f"{path}:\tnot found")
+        else:
             c1 = checksum(path).lower()
             if c1 != c0:
-                print("checksum mismatch for", path)
+                print(f"{path}:\tchecksum mismatch")
                 status = 1
+            else:
+                print(f"{path}:\tverified")
+                
                 
 elif len(args) == 1:
     c1 = checksum(args[0]).lower()
@@ -48,7 +59,9 @@ elif len(args) == 1:
     else:
         print(c1)
 else:
+    now = datetime.utcnow()
     print("# use 'python sha256.py -c <this file>' to verify ")
+    print("#", now, "UTC")
     for path in args:
         c1 = checksum(path).lower()
         print(f"{path}\t{c1}")
