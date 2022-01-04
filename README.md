@@ -39,3 +39,11 @@ $ python sha256.py <file> ...                 - calculate checksum for one or mo
 $ python sha256.py -c <hex checksum> <file>   - check checksum for a file
 $ python sha256.py -c <file with paths and checksums>   - check checksum for multiple files
 ```
+
+## Random Password Generator
+
+```sh
+$ python generate.py [options]
+    -n <length>             -- password length, default: 10
+    -s                      -- do not allow special characters
+```

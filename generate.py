@@ -6,8 +6,12 @@ python generate.py [options]
     -s                      -- do not allow special characters
 """
 
-opts, args = getopt.getopt(sys.argv[1:], "sn:")
+opts, args = getopt.getopt(sys.argv[1:], "sn:?h")
 opts = dict(opts)
+
+if "-?" in opts or "-h" in opts:
+    print(Usage)
+    sys.exit(2)
 
 chars = string.ascii_letters + string.digits
 if "-s" not in opts:
