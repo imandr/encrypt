@@ -50,12 +50,15 @@ def update(checksums_file, paths):
     checksums = read_checksums(checksums_file)
     paths = set(paths) | set(checksums.keys())
     for path in paths:
-        checksums[path] = checksum(path)
+        new_cs = checksum(path)
+        if new_cs != checksums[path]:
+            print("changed:", path)
+        checksums[path] = new_cs
     write_checksums(checksums, open(checksums_file, "w"))
     
 def write_checksums(checksums, out_file):
     now = datetime.utcnow()
-    print("# use 'python sha256.py -c <this file>' to verify ", file=out_file)
+    print("# use 'python sha256.py -v <this file>' to verify ", file=out_file)
     print("#", now, "UTC", file=out_file)
     for path, checksum in sorted(checksums.items()):
         print(f"{path}\t{checksum}", file=out_file)
